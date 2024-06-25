@@ -1,62 +1,57 @@
 // SPDX-License-Identifier: MIT
-// Compatible with OpenZeppelin Contracts v5.0.0
+// Compatible with OpenZeppelin Contracts ^5.0.0
 pragma solidity ^0.8.20;
 
-import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import {ERC721URIStorage} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
-import {ERC721Burnable} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Burnable.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Pausable.sol";
+import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
+import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
 
-contract MeetContract is ERC721URIStorage, ERC721Burnable, Ownable {
-    uint256 private _nextTokenId;
-    string private _currentBaseURI; // Added to store the current base URI
+contract Ecommerce is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnable, ERC1155Supply {
+    bytes32 public constant URI_SETTER_ROLE = keccak256("URI_SETTER_ROLE");
+    bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
+    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 
-    uint256 public totalNumberOfTokens = 0;
-
-    event TokenMinted(address indexed to, uint256 indexed tokenId, string uri);
-    event TokenBurned(uint256 indexed tokenId);
-
-    constructor() ERC721("Meet", "MET") Ownable(msg.sender) {
-        _nextTokenId = 1;
+    constructor(address defaultAdmin, address pauser, address minter) ERC1155("") {
+        _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
+        _grantRole(PAUSER_ROLE, pauser);
+        _grantRole(MINTER_ROLE, minter);
     }
 
-    function safeMint(address to, string memory uri) public onlyOwner {
-        uint256 tokenId = _nextTokenId++;
-        _safeMint(to, tokenId);
-        _setTokenURI(tokenId, uri);
-        emit TokenMinted(to, tokenId, uri);
-        totalNumberOfTokens++;
+    function setURI(string memory newuri) public onlyRole(URI_SETTER_ROLE) {
+        _setURI(newuri);
     }
 
-    function burn(uint256 tokenId) public override(ERC721Burnable) {
-        require(msg.sender == ownerOf(tokenId) || msg.sender == owner(), "Caller is not owner nor NFT owner");
-        super.burn(tokenId);
-        emit TokenBurned(tokenId);
-        totalNumberOfTokens--;
+    function pause() public onlyRole(PAUSER_ROLE) {
+        _pause();
     }
 
-    // Public function to update the base URI, restricted to the contract owner
-    function setBaseURI(string memory newBaseURI) public onlyOwner {
-        _currentBaseURI = newBaseURI;
+    function unpause() public onlyRole(PAUSER_ROLE) {
+        _unpause();
     }
 
-    function tokenURI(uint256 tokenId) public view override(ERC721, ERC721URIStorage) returns (string memory) {
-        return super.tokenURI(tokenId);
+    function mint(address account, uint256 id, uint256 amount, bytes memory data) public onlyRole(MINTER_ROLE) {
+        _mint(account, id, amount, data);
     }
 
-    function setTokenURI(uint256 tokenId, string memory _tokenURI) public onlyOwner {
-        _setTokenURI(tokenId, _tokenURI);
+    function mintBatch(address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data)
+        public
+        onlyRole(MINTER_ROLE)
+    {
+        _mintBatch(to, ids, amounts, data);
     }
 
-    function _setTokenURI(uint256 tokenId, string memory _tokenURI) internal virtual override(ERC721URIStorage) {
-        super._setTokenURI(tokenId, _tokenURI);
+    // The following functions are overrides required by Solidity.
+
+    function _update(address from, address to, uint256[] memory ids, uint256[] memory values)
+        internal
+        override(ERC1155, ERC1155Pausable, ERC1155Supply)
+    {
+        super._update(from, to, ids, values);
     }
 
-    function supportsInterface(bytes4 interfaceId) public view override(ERC721, ERC721URIStorage) returns (bool) {
+    function supportsInterface(bytes4 interfaceId) public view override(ERC1155, AccessControl) returns (bool) {
         return super.supportsInterface(interfaceId);
-    }
-
-    function _baseURI() internal view override returns (string memory) {
-        return _currentBaseURI;
     }
 }
