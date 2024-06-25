@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Pausable.sol";
 import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
 import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
 
-contract Ecommerce is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnable, ERC1155Supply {
+contract StockManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnable, ERC1155Supply {
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
 
     uint256 private constant PRICE = 0.003 ether;
@@ -22,8 +22,8 @@ contract Ecommerce is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnable, 
     error InsufficientEther(uint256 required, uint256 provided);
     error ExceedsMaxSupply(uint256 requested, uint256 available);
 
-    constructor(address defaultAdmin) ERC1155("") {
-        _grantRole(DEFAULT_ADMIN_ROLE, defaultAdmin);
+    constructor() ERC1155("") {
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
     function grantManagerRole(address account) public onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -33,7 +33,7 @@ contract Ecommerce is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnable, 
     function mint(address account, uint256 id, uint256 amount, bytes memory data) public payable {
         require(prices[id] > 0, "Price not set");
         require(amount > 0, "Amount must be greater than 0");
-        
+
         uint256 totalCost = amount * prices[id];
 
         if (msg.value < totalCost) {
