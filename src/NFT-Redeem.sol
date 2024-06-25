@@ -14,6 +14,9 @@ contract Ecommerce is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnable, 
     uint256 private constant PRICE = 0.003 ether;
     uint256 private pendingBalance;
 
+    mapping(uint256 => uint256) public maxSupply; // id => maxSupply
+    mapping(uint256 => uint256) public prices; // id => price
+
     event Minted(address indexed account, uint256 indexed id, uint256 amount);
 
     error InsufficientEther(uint256 required, uint256 provided);
@@ -28,7 +31,10 @@ contract Ecommerce is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnable, 
     }
 
     function mint(address account, uint256 id, uint256 amount, bytes memory data) public payable {
-        uint256 totalCost = amount * PRICE;
+        require(prices[id] > 0, "Price not set");
+        require(amount > 0, "Amount must be greater than 0");
+        
+        uint256 totalCost = amount * prices[id];
 
         if (msg.value < totalCost) {
             revert InsufficientEther({required: totalCost, provided: msg.value});
@@ -38,6 +44,10 @@ contract Ecommerce is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnable, 
         emit Minted(account, id, amount);
 
         pendingBalance += msg.value;
+    }
+
+    function setPrice(uint256 id, uint256 price) public onlyRole(MANAGER_ROLE) {
+        prices[id] = price;
     }
 
     function withdraw() public onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -50,9 +60,8 @@ contract Ecommerce is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnable, 
         pendingBalance = 0;
 
         // Transaction
-        (bool success1,) = payable(msg.sender).call{value: totalAmount}("");
-
-        require(success1, "Transfer failed");
+        (bool success,) = payable(msg.sender).call{value: totalAmount}("");
+        require(success, "Transfer failed");
     }
 
     function mintBatch(address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data) internal {
