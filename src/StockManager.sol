@@ -17,7 +17,8 @@ contract StockManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
     mapping(uint256 => uint256) public maxSupply; // id => maxSupply
     mapping(uint256 => uint256) public prices; // id => price
 
-    event Minted(address indexed account, uint256 indexed id, uint256 amount);
+    event Minted(address indexed account, uint256 indexed id, uint256 amount, bytes data);
+    event SetPrice(address indexed account, uint256 indexed id, uint256 amount);
 
     error InsufficientEther(uint256 required, uint256 provided);
     error ExceedsMaxSupply(uint256 requested, uint256 available);
@@ -30,7 +31,7 @@ contract StockManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
         _grantRole(MANAGER_ROLE, account);
     }
 
-    function mint(address account, uint256 id, uint256 amount, bytes memory data) public payable {
+    function mint(address to, uint256 id, uint256 amount, bytes memory data) public payable {
         require(prices[id] > 0, "Price not set");
         require(amount > 0, "Amount must be greater than 0");
 
@@ -40,14 +41,21 @@ contract StockManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
             revert InsufficientEther({required: totalCost, provided: msg.value});
         }
 
-        _mint(account, id, amount, data);
-        emit Minted(account, id, amount);
+        _mint(to, id, amount, data);
+        emit Minted(to, id, amount, data);
 
-        pendingBalance += msg.value;
+        pendingBalance += totalCost;
+
+        //Added a refund mechanism in case the user sends too much eth
+        uint256 excess = msg.value - totalCost;
+        if (excess > 0) {
+            payable(msg.sender).transfer(excess);
+        }
     }
 
     function setPrice(uint256 id, uint256 price) public onlyRole(MANAGER_ROLE) {
         prices[id] = price;
+        emit SetPrice(msg.sender, id, price);
     }
 
     function withdraw() public onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -64,8 +72,34 @@ contract StockManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
         require(success, "Transfer failed");
     }
 
-    function mintBatch(address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data) internal {
+    function mintBatch(address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data) public payable {
+        require(ids.length == amounts.length, "IDs and amounts length mismatch");
+
+        uint256 totalCost = 0;
+        for (uint256 i = 0; i < ids.length; i++) {
+            require(prices[ids[i]] > 0, "Price not set");
+            require(amounts[i] > 0, "Amount must be greater than 0");
+
+            totalCost += amounts[i] * prices[ids[i]];
+        }
+
+        if (msg.value < totalCost) {
+            revert InsufficientEther({required: totalCost, provided: msg.value});
+        }
+
         _mintBatch(to, ids, amounts, data);
+
+        for (uint256 i = 0; i < ids.length; i++) {
+            emit Minted(to, ids[i], amounts[i], data);
+        }
+
+        pendingBalance += totalCost;
+
+        // Added a refund mechanism in case the user sends too much ETH
+        uint256 excess = msg.value - totalCost;
+        if (excess > 0) {
+            payable(msg.sender).transfer(excess);
+        }
     }
 
     function setURI(string memory newuri) public onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -80,8 +114,8 @@ contract StockManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
         _unpause();
     }
 
-    // This function is used to add supply 
-    function addSupply(uint256[] memory ids, uint256[] memory values) public onlyRole(MANAGER_ROLE){
+    // This function is used to add supply
+    function addSupply(uint256[] memory ids, uint256[] memory values) public onlyRole(MANAGER_ROLE) {
         _update(address(0), msg.sender, ids, values);
     }
 
