@@ -14,9 +14,10 @@ library NFTMetadataRenderer {
         string memory name,
         string memory description,
         string memory imageURI,
+        string memory status,
         uint256 tokenId
     ) internal pure returns (string memory) {
-        bytes memory json = createMetadataJSON(name, description, imageURI, tokenId);
+        bytes memory json = createMetadataJSON(name, description, imageURI, status, tokenId);
         return encodeMetadataJSON(json);
     }
 
@@ -24,6 +25,7 @@ library NFTMetadataRenderer {
         string memory name,
         string memory description,
         string memory imageURI,
+        string memory status,
         uint256 tokenId
     ) internal pure returns (bytes memory) {
         return
@@ -36,7 +38,9 @@ library NFTMetadataRenderer {
             'description": "',
             description,
             '", "',
-            mediaData,
+            'imageURI": "',
+            imageURI,
+            '", "',
             'properties": {"number": "',
             Strings.toString(tokenOfEdition),
             '", "status": "',
@@ -51,30 +55,30 @@ library NFTMetadataRenderer {
         return string(abi.encodePacked("data:application/json;base64,", Base64.encode(json)));
     }
 
-    /// Generates edition metadata from storage information as base64-json blob
-    /// Combines the media data and metadata
-    /// @param imageUrl URL of image to render for edition
-    /// @param animationUrl URL of animation to render for edition
-    function tokenMediaData(string memory imageUrl, string memory animationUrl, string memory vrmUrl) internal pure returns (string memory) {
-        bool hasImage = bytes(imageUrl).length > 0;
-        bool hasAnimation = bytes(animationUrl).length > 0;
-        bool hasVrm = bytes(vrmUrl).length > 0;
-        if (hasImage && hasAnimation && hasVrm) {
-            return string(abi.encodePacked('image": "', imageUrl, '", "animation_url": "', animationUrl, '", "vrm_url": "', vrmUrl, '", "'));
-        }
-        if (hasImage && hasVrm) {
-            return string(abi.encodePacked('image": "', imageUrl, '", "vrm_url": "', vrmUrl, '", "'));
-        }
-        if (hasImage && hasAnimation) {
-            return string(abi.encodePacked('image": "', imageUrl, '", "animation_url": "', animationUrl, '", "'));
-        }
-        if (hasImage) {
-            return string(abi.encodePacked('image": "', imageUrl, '", "'));
-        }
-        if (hasAnimation) {
-            return string(abi.encodePacked('animation_url": "', animationUrl, '", "'));
-        }
+    // /// Generates edition metadata from storage information as base64-json blob
+    // /// Combines the media data and metadata
+    // /// @param imageUrl URL of image to render for edition
+    // /// @param animationUrl URL of animation to render for edition
+    // function tokenMediaData(string memory imageUrl, string memory animationUrl, string memory vrmUrl) internal pure returns (string memory) {
+    //     bool hasImage = bytes(imageUrl).length > 0;
+    //     bool hasAnimation = bytes(animationUrl).length > 0;
+    //     bool hasVrm = bytes(vrmUrl).length > 0;
+    //     if (hasImage && hasAnimation && hasVrm) {
+    //         return string(abi.encodePacked('image": "', imageUrl, '", "animation_url": "', animationUrl, '", "vrm_url": "', vrmUrl, '", "'));
+    //     }
+    //     if (hasImage && hasVrm) {
+    //         return string(abi.encodePacked('image": "', imageUrl, '", "vrm_url": "', vrmUrl, '", "'));
+    //     }
+    //     if (hasImage && hasAnimation) {
+    //         return string(abi.encodePacked('image": "', imageUrl, '", "animation_url": "', animationUrl, '", "'));
+    //     }
+    //     if (hasImage) {
+    //         return string(abi.encodePacked('image": "', imageUrl, '", "'));
+    //     }
+    //     if (hasAnimation) {
+    //         return string(abi.encodePacked('animation_url": "', animationUrl, '", "'));
+    //     }
 
-        return "";
-    }
+    //     return "";
+    // }
 }

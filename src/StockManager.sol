@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Pausable.sol";
 import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
 import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
+import "lib/create-nft-metadata.sol";
 
 contract StockManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnable, ERC1155Supply {
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
@@ -15,7 +16,7 @@ contract StockManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
     uint256 private pendingBalance;
     uint256 private _nextId;
 
-    // mapping(uint256 => uint256) public totalSupply; // id => totalSupply
+    mapping(uint256 => uint256) public totalSupply; // id => totalSupply
     mapping(uint256 => uint256) public maxSupply; // id => maxSupply
     mapping(uint256 => uint256) public prices; // id => price
 
