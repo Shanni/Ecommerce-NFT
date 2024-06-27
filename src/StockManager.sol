@@ -16,15 +16,27 @@ contract StockManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
     uint256 private pendingBalance;
     uint256 private _nextId;
 
-    mapping(uint256 => uint256) public totalSupply; // id => totalSupply
-    mapping(uint256 => uint256) public maxSupply; // id => maxSupply
-    mapping(uint256 => uint256) public prices; // id => price
+    mapping(uint256 => EcommerceNFT) public nftStore; // token id => NFT Data
 
     event Minted(address indexed account, uint256 indexed id, uint256 amount, bytes data);
     event SetPrice(address indexed account, uint256 indexed id, uint256 amount);
 
     error InsufficientEther(uint256 required, uint256 provided);
     error ExceedsMaxSupply(uint256 requested, uint256 available);
+
+    error NotValidWithdraw(uint256 id, uint256 amount, address initiator);
+
+    struct EcommerceNFT {
+        string name;
+        string description;
+        string imageURI;
+        uint256 tokenId;
+        uint256 supply;
+        uint256 price;
+        string metadataJSON;
+
+        address creator;
+    }
 
     constructor() ERC1155("") {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -48,7 +60,7 @@ contract StockManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
         _mint(to, id, amount, data);
         emit Minted(to, id, amount, data);
 
-        pendingBalance += totalCost;
+        _withdraw(id, totalCost);
 
         //Added a refund mechanism in case the user sends too much eth
         uint256 excess = msg.value - totalCost;
@@ -57,22 +69,36 @@ contract StockManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
         }
     }
 
-    // function createProduct(uint256 maxSupply, uint256 price) public onlyRole(MANAGER_ROLE) {
-    //     require(maxSupply > 0, "Max supply must be greater than 0");
-    //     require(price > 0, "Price must be greater than 0");
+    function createProduct(string name, string description, string imageURI, string price, uint256 maxSupply, uint256 price) public onlyRole(MANAGER_ROLE) returns (EcommerceNFT) {
+        require(maxSupply > 0, "Max supply must be greater than 0");
+        require(price > 0, "Price must be greater than 0");
 
-    //     uint256 id = _nextId++;
+        uint256 id = _nextId++;
 
-    //     maxSupply[id] = maxSupply;
-    //     prices[id] = price;
-    // }
+        EcommerceNFT memory nft = EcommerceNFT({
+            name: name,
+            description: description,
+            imageURI: imageURI,
+            tokenId: id,
+            supply: maxSupply,
+            price: price,
+            metadataJSON: NFTMetadataRenderer.createMetadataEdition(name, description, imageURI, "Available", id),
+            creator: msg.sender
+        });
+
+        nftStore[id] = nft;
+    }
 
     function setPrice(uint256 id, uint256 price) public onlyRole(MANAGER_ROLE) {
         prices[id] = price;
         emit SetPrice(msg.sender, id, price);
     }
 
-    function _withdraw(uint256 amount) internal onlyRole(MANAGER_ROLE) {
+    function _withdraw(uint256 id, uint256 amount) internal onlyRole(MANAGER_ROLE) {
+        if (nftStore.creator != msg.sender){
+            revert NotValidWithdraw(id, amount, msg.sender); 
+        } 
+
         (bool success,) = payable(msg.sender).call{value: amount}("");
         require(success, "Transfer failed");
     }
@@ -91,34 +117,39 @@ contract StockManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
         require(success, "Transfer failed");
     }
 
-    function mintBatch(address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data) public payable {
-        require(ids.length == amounts.length, "IDs and amounts length mismatch");
+    // function mintBatch(address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data) public payable {
+    //     require(ids.length == amounts.length, "IDs and amounts length mismatch");
 
-        uint256 totalCost = 0;
-        for (uint256 i = 0; i < ids.length; i++) {
-            require(prices[ids[i]] > 0, "Price not set");
-            require(amounts[i] > 0, "Amount must be greater than 0");
+    //     uint256 totalCost = 0;
+    //     for (uint256 i = 0; i < ids.length; i++) {
+    //         require(prices[ids[i]] > 0, "Price not set");
+    //         require(amounts[i] > 0, "Amount must be greater than 0");
 
-            totalCost += amounts[i] * prices[ids[i]];
-        }
+    //         totalCost += amounts[i] * prices[ids[i]];
+    //     }
 
-        if (msg.value < totalCost) {
-            revert InsufficientEther({required: totalCost, provided: msg.value});
-        }
+    //     if (msg.value < totalCost) {
+    //         revert InsufficientEther({required: totalCost, provided: msg.value});
+    //     }
 
-        _mintBatch(to, ids, amounts, data);
+    //     _mintBatch(to, ids, amounts, data);
 
-        for (uint256 i = 0; i < ids.length; i++) {
-            emit Minted(to, ids[i], amounts[i], data);
-        }
+    //     for (uint256 i = 0; i < ids.length; i++) {
+    //         emit Minted(to, ids[i], amounts[i], data);
+    //     }
 
-        pendingBalance += totalCost;
+    //     pendingBalance += totalCost;
 
-        // Added a refund mechanism in case the user sends too much ETH
-        uint256 excess = msg.value - totalCost;
-        if (excess > 0) {
-            payable(msg.sender).transfer(excess);
-        }
+    //     // Added a refund mechanism in case the user sends too much ETH
+    //     uint256 excess = msg.value - totalCost;
+    //     if (excess > 0) {
+    //         payable(msg.sender).transfer(excess);
+    //     }
+    // }
+
+    function updateImageURI(uint256 id, string memory newuri) public onlyRole(MANAGER_ROLE) {
+        require(nftStore[id].creator == msg.sender, "not valid manager");
+        nftStore[id].imageURI = newuri;
     }
 
     function setURI(string memory newuri) public onlyRole(DEFAULT_ADMIN_ROLE) {
