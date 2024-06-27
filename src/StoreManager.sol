@@ -7,9 +7,9 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Pausable.sol";
 import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
 import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
-import "lib/create-nft-metadata.sol";
+import "src/create-nft-metadata.sol";
 
-contract StockManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnable, ERC1155Supply {
+contract StoreManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnable, ERC1155Supply {
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
 
     uint256 private constant PRICE = 0.003 ether;
