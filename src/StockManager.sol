@@ -2,8 +2,8 @@
 // Compatible with OpenZeppelin Contracts ^5.0.0
 pragma solidity ^0.8.20;
 
-import {ERC1155} from "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Pausable.sol";
 import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
 import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
@@ -13,7 +13,9 @@ contract StockManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
 
     uint256 private constant PRICE = 0.003 ether;
     uint256 private pendingBalance;
+    uint256 private _nextId;
 
+    // mapping(uint256 => uint256) public totalSupply; // id => totalSupply
     mapping(uint256 => uint256) public maxSupply; // id => maxSupply
     mapping(uint256 => uint256) public prices; // id => price
 
@@ -25,6 +27,7 @@ contract StockManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
 
     constructor() ERC1155("") {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _nextId = 1;
     }
 
     function grantManagerRole(address account) public onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -53,9 +56,24 @@ contract StockManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
         }
     }
 
+    // function createProduct(uint256 maxSupply, uint256 price) public onlyRole(MANAGER_ROLE) {
+    //     require(maxSupply > 0, "Max supply must be greater than 0");
+    //     require(price > 0, "Price must be greater than 0");
+
+    //     uint256 id = _nextId++;
+
+    //     maxSupply[id] = maxSupply;
+    //     prices[id] = price;
+    // }
+
     function setPrice(uint256 id, uint256 price) public onlyRole(MANAGER_ROLE) {
         prices[id] = price;
         emit SetPrice(msg.sender, id, price);
+    }
+
+    function _withdraw(uint256 amount) internal onlyRole(MANAGER_ROLE) {
+        (bool success,) = payable(msg.sender).call{value: amount}("");
+        require(success, "Transfer failed");
     }
 
     function withdraw() public onlyRole(DEFAULT_ADMIN_ROLE) {
