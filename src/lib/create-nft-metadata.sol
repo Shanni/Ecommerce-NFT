@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.20;
 
-import "@thirdweb-dev/contracts/lib/Strings.sol";
-import "@thirdweb-dev/contracts/external-deps/openzeppelin/utils/Base64.sol";
+import "lib/contracts/contracts/lib/Strings.sol";
+import "lib/contracts/contracts/external-deps/openzeppelin/utils/Base64.sol";
 
 /// NFT metadata library for rendering metadata associated with editions
 library NFTMetadataRenderer {
@@ -14,10 +14,10 @@ library NFTMetadataRenderer {
         string memory name,
         string memory description,
         string memory imageURI,
-        string memory status,
+        string memory properties,
         uint256 tokenId
     ) internal pure returns (string memory) {
-        bytes memory json = createMetadataJSON(name, description, imageURI, status, tokenId);
+        bytes memory json = createMetadataJSON(name, description, imageURI, properties, tokenId);
         return encodeMetadataJSON(json);
     }
 
@@ -25,11 +25,10 @@ library NFTMetadataRenderer {
         string memory name,
         string memory description,
         string memory imageURI,
-        string memory status,
+        string memory properties,
         uint256 tokenId
     ) internal pure returns (bytes memory) {
-        return
-            abi.encodePacked(
+        return abi.encodePacked(
             '{"name": "',
             name,
             " no.",
@@ -38,13 +37,13 @@ library NFTMetadataRenderer {
             'description": "',
             description,
             '", "',
-            'imageURI": "',
+            'image": "',
             imageURI,
             '", "',
             'properties": {"number": "',
-            Strings.toString(tokenOfEdition),
-            '", "status": "',
-            status,
+            Strings.toString(tokenId),
+            '", "properties": "',
+            properties,
             '"}}'
         );
     }

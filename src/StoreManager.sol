@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Pausable.sol";
 import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Burnable.sol";
 import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
-import "src/create-nft-metadata.sol";
+import "src/lib/create-nft-metadata.sol";
 
 contract StoreManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnable, ERC1155Supply {
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
@@ -19,7 +19,15 @@ contract StoreManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
     mapping(uint256 => EcommerceNFT) public nftStore; // token id => NFT Data
 
     event Minted(address indexed account, uint256 indexed id, uint256 amount, bytes data);
-    event SetPrice(address indexed account, uint256 indexed id, uint256 amount);
+    event CreateProduct(
+        uint256 indexed id,
+        string name,
+        string description,
+        string imageURI,
+        string price,
+        string properties,
+        uint256 maxSupply
+    );
 
     error InsufficientEther(uint256 required, uint256 provided);
     error ExceedsMaxSupply(uint256 requested, uint256 available);
@@ -33,8 +41,7 @@ contract StoreManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
         uint256 tokenId;
         uint256 supply;
         uint256 price;
-        string metadataJSON;
-
+        string properties;
         address creator;
     }
 
@@ -48,10 +55,15 @@ contract StoreManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
     }
 
     function mint(address to, uint256 id, uint256 amount, bytes memory data) public payable {
-        require(prices[id] > 0, "Price not set");
-        require(amount > 0, "Amount must be greater than 0");
+        if (nftStore[id] == 0) {
+            revert("nft is not set");
+        }
 
-        uint256 totalCost = amount * prices[id];
+        if (nftStore[id].supply < amount) {
+            revert ExceedsMaxSupply({requested: amount, available: nftStore[id].supply});
+        }
+
+        uint256 totalCost = amount * nftStore[id].price;
 
         if (msg.value < totalCost) {
             revert InsufficientEther({required: totalCost, provided: msg.value});
@@ -69,7 +81,14 @@ contract StoreManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
         }
     }
 
-    function createProduct(string name, string description, string imageURI, string price, uint256 maxSupply, uint256 price) public onlyRole(MANAGER_ROLE) returns (EcommerceNFT) {
+    function createProduct(
+        string memory name,
+        string memory description,
+        string memory imageURI,
+        string memory price,
+        string memory properties,
+        uint256 memory maxSupply
+    ) public onlyRole(MANAGER_ROLE) returns (EcommerceNFT memory) {
         require(maxSupply > 0, "Max supply must be greater than 0");
         require(price > 0, "Price must be greater than 0");
 
@@ -82,22 +101,25 @@ contract StoreManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
             tokenId: id,
             supply: maxSupply,
             price: price,
-            metadataJSON: NFTMetadataRenderer.createMetadataEdition(name, description, imageURI, "Available", id),
+            properties: properties,
             creator: msg.sender
         });
 
         nftStore[id] = nft;
+
+        emit CreateProduct(id, name, description, imageURI, price, properties, maxSupply);
     }
 
-    function setPrice(uint256 id, uint256 price) public onlyRole(MANAGER_ROLE) {
-        prices[id] = price;
-        emit SetPrice(msg.sender, id, price);
+    function uri(uint256 id) public view override returns (string memory) {
+        return NFTMetadataRenderer.createMetadataEdition(
+            nftStore[id].name, nftStore[id].description, nftStore[id].imageURI, nftStore[id].properties, id
+        );
     }
 
     function _withdraw(uint256 id, uint256 amount) internal onlyRole(MANAGER_ROLE) {
-        if (nftStore.creator != msg.sender){
-            revert NotValidWithdraw(id, amount, msg.sender); 
-        } 
+        if (nftStore.creator != msg.sender) {
+            revert NotValidWithdraw(id, amount, msg.sender);
+        }
 
         (bool success,) = payable(msg.sender).call{value: amount}("");
         require(success, "Transfer failed");
@@ -120,12 +142,14 @@ contract StoreManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
     // function mintBatch(address to, uint256[] memory ids, uint256[] memory amounts, bytes memory data) public payable {
     //     require(ids.length == amounts.length, "IDs and amounts length mismatch");
 
-    //     uint256 totalCost = 0;
     //     for (uint256 i = 0; i < ids.length; i++) {
-    //         require(prices[ids[i]] > 0, "Price not set");
-    //         require(amounts[i] > 0, "Amount must be greater than 0");
+    //         if (nftStore[ids[i]].supply < amounts[i]) {
+    //             revert ExceedsMaxSupply({requested: amounts[i], available: nftStore[ids[i]].supply});
+    //         }
 
-    //         totalCost += amounts[i] * prices[ids[i]];
+    //         if (nftStore[ids[i]].price == 0) {
+    //             revert("Price not set");
+    //         }
     //     }
 
     //     if (msg.value < totalCost) {
@@ -136,11 +160,12 @@ contract StoreManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
 
     //     for (uint256 i = 0; i < ids.length; i++) {
     //         emit Minted(to, ids[i], amounts[i], data);
+
+    //         uint256 totalCost = amounts[i] * nftStore[ids[i]];
+    //         _withdraw(id, totalCost);
     //     }
 
-    //     pendingBalance += totalCost;
-
-    //     // Added a refund mechanism in case the user sends too much ETH
+    //     //Added a refund mechanism in case the user sends too much eth
     //     uint256 excess = msg.value - totalCost;
     //     if (excess > 0) {
     //         payable(msg.sender).transfer(excess);
@@ -150,6 +175,41 @@ contract StoreManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
     function updateImageURI(uint256 id, string memory newuri) public onlyRole(MANAGER_ROLE) {
         require(nftStore[id].creator == msg.sender, "not valid manager");
         nftStore[id].imageURI = newuri;
+    }
+
+    function updateProperties(uint256 id, string memory newProperties) public onlyRole(MANAGER_ROLE) {
+        require(nftStore[id].creator == msg.sender, "not valid manager");
+        nftStore[id].properties = newProperties;
+    }
+
+    function updateDescription(uint256 id, string memory newDescription) public onlyRole(MANAGER_ROLE) {
+        require(nftStore[id].creator == msg.sender, "not valid manager");
+        nftStore[id].description = newDescription;
+    }
+
+    function updateName(uint256 id, string memory newName) public onlyRole(MANAGER_ROLE) {
+        require(nftStore[id].creator == msg.sender, "not valid manager");
+        nftStore[id].name = newName;
+    }
+
+    function updateSupply(uint256 id, uint256 newSupply) public onlyRole(MANAGER_ROLE) {
+        require(nftStore[id].creator == msg.sender, "not valid manager");
+        nftStore[id].supply = newSupply;
+    }
+
+    function updatePrice(uint256 id, uint256 newPrice) public onlyRole(MANAGER_ROLE) {
+        require(nftStore[id].creator == msg.sender, "not valid manager");
+        nftStore[id].price = newPrice;
+    }
+
+    function updateOwner(uint256 id, address newCreator) public onlyRole(MANAGER_ROLE) {
+        require(nftStore[id].creator == msg.sender, "not valid manager");
+        nftStore[id].creator = newCreator;
+    }
+
+    function updateNFT(uint256 id, EcommerceNFT memory nft) public onlyRole(MANAGER_ROLE) {
+        require(nftStore[id].creator == msg.sender, "not valid manager");
+        nftStore[id] = nft;
     }
 
     function setURI(string memory newuri) public onlyRole(DEFAULT_ADMIN_ROLE) {
