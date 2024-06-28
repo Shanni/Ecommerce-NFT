@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Compatible with OpenZeppelin Contracts ^5.0.0
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.26;
 
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
@@ -13,8 +13,8 @@ contract StoreManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
 
     uint256 private constant PRICE = 0.003 ether;
-    uint256 private pendingBalance;
     uint256 private _nextId;
+    uint256 public pendingBalance;
 
     mapping(uint256 => EcommerceNFT) public nftStore; // token id => NFT Data
 
@@ -24,7 +24,7 @@ contract StoreManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
         string name,
         string description,
         string imageURI,
-        string price,
+        uint256 price,
         string properties,
         uint256 maxSupply
     );
@@ -55,10 +55,6 @@ contract StoreManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
     }
 
     function mint(address to, uint256 id, uint256 amount, bytes memory data) public payable {
-        if (nftStore[id] == 0) {
-            revert("nft is not set");
-        }
-
         if (nftStore[id].supply < amount) {
             revert ExceedsMaxSupply({requested: amount, available: nftStore[id].supply});
         }
@@ -85,9 +81,9 @@ contract StoreManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
         string memory name,
         string memory description,
         string memory imageURI,
-        string memory price,
+        uint256 price,
         string memory properties,
-        uint256 memory maxSupply
+        uint256 maxSupply
     ) public onlyRole(MANAGER_ROLE) returns (EcommerceNFT memory) {
         require(maxSupply > 0, "Max supply must be greater than 0");
         require(price > 0, "Price must be greater than 0");
@@ -108,6 +104,7 @@ contract StoreManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
         nftStore[id] = nft;
 
         emit CreateProduct(id, name, description, imageURI, price, properties, maxSupply);
+        return nft;
     }
 
     function uri(uint256 id) public view override returns (string memory) {
@@ -117,7 +114,7 @@ contract StoreManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
     }
 
     function _withdraw(uint256 id, uint256 amount) internal onlyRole(MANAGER_ROLE) {
-        if (nftStore.creator != msg.sender) {
+        if (nftStore[id].creator != msg.sender) {
             revert NotValidWithdraw(id, amount, msg.sender);
         }
 

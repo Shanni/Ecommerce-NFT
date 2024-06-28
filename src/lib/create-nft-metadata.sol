@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.26;
 
 import "lib/contracts/contracts/lib/Strings.sol";
 import "lib/contracts/contracts/external-deps/openzeppelin/utils/Base64.sol";
