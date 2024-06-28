@@ -11,10 +11,7 @@ import "src/lib/create-nft-metadata.sol";
 
 contract StoreManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnable, ERC1155Supply {
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
-
-    uint256 private constant PRICE = 0.003 ether;
     uint256 private _nextId;
-    uint256 public pendingBalance;
 
     mapping(uint256 => EcommerceNFT) public nftStore; // token id => NFT Data
 
@@ -26,7 +23,8 @@ contract StoreManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
         string imageURI,
         uint256 price,
         string properties,
-        uint256 maxSupply
+        uint256 maxSupply,
+        address fundReceiver
     );
 
     error InsufficientEther(uint256 required, uint256 provided);
@@ -43,6 +41,7 @@ contract StoreManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
         uint256 price;
         string properties;
         address creator;
+        address fundReceiver;
     }
 
     constructor() ERC1155("") {
@@ -83,7 +82,8 @@ contract StoreManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
         string memory imageURI,
         uint256 price,
         string memory properties,
-        uint256 maxSupply
+        uint256 maxSupply,
+        address fundReceiver
     ) public onlyRole(MANAGER_ROLE) returns (EcommerceNFT memory) {
         require(maxSupply > 0, "Max supply must be greater than 0");
         require(price > 0, "Price must be greater than 0");
@@ -98,12 +98,13 @@ contract StoreManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
             supply: maxSupply,
             price: price,
             properties: properties,
-            creator: msg.sender
+            creator: msg.sender,
+            fundReceiver: fundReceiver
         });
 
         nftStore[id] = nft;
 
-        emit CreateProduct(id, name, description, imageURI, price, properties, maxSupply);
+        emit CreateProduct(id, name, description, imageURI, price, properties, maxSupply, fundReceiver);
         return nft;
     }
 
@@ -113,26 +114,9 @@ contract StoreManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
         );
     }
 
-    function _withdraw(uint256 id, uint256 amount) internal onlyRole(MANAGER_ROLE) {
-        if (nftStore[id].creator != msg.sender) {
-            revert NotValidWithdraw(id, amount, msg.sender);
-        }
+    function _withdraw(uint256 id, uint256 amount) internal {
+        (bool success,) = payable(nftStore[id].fundReceiver).call{value:amount}("withdraw fund");
 
-        (bool success,) = payable(msg.sender).call{value: amount}("");
-        require(success, "Transfer failed");
-    }
-
-    function withdraw() public onlyRole(DEFAULT_ADMIN_ROLE) {
-        // Checker
-        require(pendingBalance > 0, "No funds to withdraw");
-
-        uint256 totalAmount = pendingBalance;
-
-        // Set state to 0
-        pendingBalance = 0;
-
-        // Transaction
-        (bool success,) = payable(msg.sender).call{value: totalAmount}("");
         require(success, "Transfer failed");
     }
 
@@ -202,6 +186,11 @@ contract StoreManager is ERC1155, AccessControl, ERC1155Pausable, ERC1155Burnabl
     function updateOwner(uint256 id, address newCreator) public onlyRole(MANAGER_ROLE) {
         require(nftStore[id].creator == msg.sender, "not valid manager");
         nftStore[id].creator = newCreator;
+    }
+
+    function updateFundReceiver(uint256 id, address newFundReceiver) public onlyRole(MANAGER_ROLE) {
+        require(nftStore[id].creator == msg.sender, "not valid manager");
+        nftStore[id].fundReceiver = newFundReceiver;
     }
 
     function updateNFT(uint256 id, EcommerceNFT memory nft) public onlyRole(MANAGER_ROLE) {
